@@ -5,51 +5,82 @@ import cv2
 TARGET_W = 202
 TARGET_H = 360
 
-def create_video(input_video_path, output_video_path, transcript, snippet):
+def create_video(input_video_path, output_video_path, transcript, snippet, face_tracking=False, bottom_video_path=None):
     start_time, end_time = calculate_times(transcript, snippet)
-
+    clip_duration = end_time - start_time
+    
     # Get chunks within the start and end time
     chunks = [chunk for chunk in transcript["words"] if chunk["start"] >= start_time and chunk["end"] <= end_time]
-
     lines = build_lines(chunks)
     
-    video = mp.VideoFileClip(input_video_path)
+    # Load top video and process it
+    top_video = mp.VideoFileClip(input_video_path)
+    top_video = top_video.subclipped(start_time, end_time)
+    
+    if face_tracking:
+        top_video = crop_faces(top_video)
+    
+    # If bottom video provided, load and trim it to same duration from the middle
+    if bottom_video_path:
+        bottom_video = mp.VideoFileClip(bottom_video_path)
+        
+        # Calculate middle section of bottom video
+        bottom_duration = bottom_video.duration
+        if bottom_duration > clip_duration:
+            middle_start = (bottom_duration - clip_duration) / 2
+            bottom_video = bottom_video.subclipped(middle_start, middle_start + clip_duration)
+        else:
+            # If bottom video is shorter, loop it to match duration
+            bottom_video = bottom_video.loop(duration=clip_duration)
+        
+        # Resize videos to fit in frame
+        target_height = 360  # Total height
+        top_height = target_height // 2
+        bottom_height = target_height // 2
+        
+        top_video = top_video.resized(height=top_height)
+        bottom_video = bottom_video.resized(height=bottom_height)
+        
+        # Stack videos vertically
+        videos = [[top_video], [bottom_video]]
+        video = mp.clips_array(videos)
+    else:
+        video = top_video
 
-    # Trim video
-    video = video.subclipped(start_time, end_time)
-
-    # Adjust timestamps
+    # Adjust timestamps relative to clip start
     first_timestamp = lines[0]["timestamp"]
     for i in range(len(lines)):
         lines[i]["timestamp"] = lines[i]["timestamp"] - first_timestamp
-    start_time -= first_timestamp
-    end_time -= first_timestamp
     
-    for line in lines:
-        print(f"{line['timestamp']}: {line['line']}")
-
-    # Crop faces
-    video = crop_faces(video)
-
     # Render subtitles
     video_clips = []
     for i in range(len(lines)):
         clip_start_time = lines[i]["timestamp"]
-        clip_end_time = lines[i+1]["timestamp"] if i+1 < len(lines) else end_time
+        clip_end_time = lines[i+1]["timestamp"] if i+1 < len(lines) else (end_time - start_time)
+        
         try:
             video_clip = video.subclipped(clip_start_time, clip_end_time)
         except Exception as e:
             print(f"Error with subclipping: {e}")
             continue
-        text_clip = mp.TextClip(text=lines[i]["line"], font="Arial.ttf", font_size=18, stroke_color="white", color="black", stroke_width=1)
+            
+        text_clip = mp.TextClip(
+            text=lines[i]["line"], 
+            font="Arial.ttf", 
+            font_size=18, 
+            stroke_color="white", 
+            color="black", 
+            stroke_width=1
+        )
         text_clip = text_clip.with_duration(clip_end_time - clip_start_time)
-        text_clip = text_clip.with_position((0.5 - 0.5 * text_clip.size[0] / TARGET_W, 0.5), relative=True)
+        text_clip = text_clip.with_position(('center', 'bottom'), relative=True)
+        
         video_clip = mp.CompositeVideoClip([video_clip, text_clip])
         video_clips.append(video_clip)
     
     # Combine all video clips
-    video = mp.concatenate_videoclips(video_clips)
-    video.write_videofile(output_video_path, codec="libx264")
+    final_video = mp.concatenate_videoclips(video_clips)
+    final_video.write_videofile(output_video_path, codec="libx264")
 
 def calculate_times(transcript, snippet):
     snippet_remaining = snippet.strip()

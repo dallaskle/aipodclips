@@ -48,7 +48,7 @@ def transcribe(video_path):
     ).model_dump()
     return result
 
-def process_video_url(url, face_tracking=False):
+def process_video_url(url, face_tracking=False, bottom_video_url=None):
     # Create output directory if it doesn't exist
     os.makedirs("video_inputs", exist_ok=True)
     os.makedirs("video_outputs", exist_ok=True)
@@ -71,6 +71,12 @@ def process_video_url(url, face_tracking=False):
         "transcript": transcript["text"]
     })
     
+    # Download bottom video if provided
+    bottom_video_path = None
+    if bottom_video_url:
+        bottom_video_path = f"video_inputs/bottom_{video_id}"
+        download(bottom_video_url, bottom_video_path)
+    
     # Create clips for each snippet
     output_clips = []
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -83,7 +89,8 @@ def process_video_url(url, face_tracking=False):
                 output_path,
                 transcript,
                 snippet["text"],
-                face_tracking=face_tracking
+                face_tracking=face_tracking,
+                bottom_video_path=bottom_video_path
             )
             
             output_clips.append(output_path)
@@ -93,8 +100,11 @@ def process_video_url(url, face_tracking=False):
 
 if __name__ == "__main__":
     # Example usage
-    url = input("Enter video URL: ")
+    url = input("Enter top video URL: ")
+    bottom_url = input("Enter bottom video URL (or press Enter to skip): ")
     use_face_tracking = input("Use face tracking? (y/n): ").lower() == 'y'
-    clips = process_video_url(url, face_tracking=use_face_tracking)
+    
+    bottom_video_url = bottom_url if bottom_url.strip() else None
+    clips = process_video_url(url, face_tracking=use_face_tracking, bottom_video_url=bottom_video_url)
     print("\nProcessing complete!")
     print("Output clips:", clips)
