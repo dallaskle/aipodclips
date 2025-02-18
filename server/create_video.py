@@ -1,9 +1,20 @@
 import moviepy as mp
 import cv2
+import numpy as np
+from moviepy.audio.AudioClip import AudioArrayClip
 
 # TODO: Make this dynamic based on the video
 TARGET_W = 202
 TARGET_H = 360
+
+def volumex(audio_clip, factor):
+    # Convert the audio clip to a NumPy array
+    arr = audio_clip.to_soundarray(fps=audio_clip.fps)
+    # Scale the audio samples
+    arr *= factor
+    # Create a new AudioArrayClip with the scaled array
+    return AudioArrayClip(arr, fps=audio_clip.fps)
+
 
 def create_video(input_video_path, output_video_path, transcript, snippet, face_tracking=False, bottom_video_path=None):
     start_time, end_time = calculate_times(transcript, snippet)
@@ -20,9 +31,14 @@ def create_video(input_video_path, output_video_path, transcript, snippet, face_
     if face_tracking:
         top_video = crop_faces(top_video)
     
-    # If bottom video provided, load and trim it to same duration from the middle
+    # If bottom video provided, load and trim it to same duration
     if bottom_video_path:
         bottom_video = mp.VideoFileClip(bottom_video_path)
+        
+        # Reduce volume to 20% (multiply by 0.20) with fallback method        
+        audio = bottom_video.audio
+        audio_mod = volumex(audio, 0.20)
+        bottom_video = bottom_video.with_audio(audio_mod)
         
         # Calculate middle section of bottom video
         bottom_duration = bottom_video.duration
