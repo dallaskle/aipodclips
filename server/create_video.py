@@ -89,7 +89,7 @@ def create_video(input_video_path, output_video_path, transcript, snippet, face_
             stroke_width=1
         )
         text_clip = text_clip.with_duration(clip_end_time - clip_start_time)
-        text_clip = text_clip.with_position(('center', 'bottom'), relative=True)
+        text_clip = text_clip.with_position(('center', 'bottom-center'), relative=True)
         
         video_clip = mp.CompositeVideoClip([video_clip, text_clip])
         video_clips.append(video_clip)
