@@ -48,7 +48,7 @@ def transcribe(video_path):
     ).model_dump()
     return result
 
-def process_video_url(url):
+def process_video_url(url, face_tracking=False):
     # Create output directory if it doesn't exist
     os.makedirs("video_inputs", exist_ok=True)
     os.makedirs("video_outputs", exist_ok=True)
@@ -82,7 +82,8 @@ def process_video_url(url):
                 input_path,
                 output_path,
                 transcript,
-                snippet["text"]
+                snippet["text"],
+                face_tracking=face_tracking
             )
             
             output_clips.append(output_path)
@@ -93,6 +94,7 @@ def process_video_url(url):
 if __name__ == "__main__":
     # Example usage
     url = input("Enter video URL: ")
-    clips = process_video_url(url)
+    use_face_tracking = input("Use face tracking? (y/n): ").lower() == 'y'
+    clips = process_video_url(url, face_tracking=use_face_tracking)
     print("\nProcessing complete!")
     print("Output clips:", clips)
