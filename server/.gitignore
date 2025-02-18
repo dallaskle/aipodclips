@@ -1,1 +1,4 @@
 *.local
+.env
+video_inputs/
+video_outputs/
