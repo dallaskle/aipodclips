@@ -1,0 +1,3 @@
+[submodule "deepresearch"]
+    path = third_party/deepresearch
+    url = https://github.com/korykilpatrick/deep-research.git
