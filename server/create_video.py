@@ -35,9 +35,9 @@ def create_video(input_video_path, output_video_path, transcript, snippet, face_
     if bottom_video_path:
         bottom_video = mp.VideoFileClip(bottom_video_path)
         
-        # Reduce volume to 20% (multiply by 0.20) with fallback method        
+        # Reduce volume to 25% (multiply by 0.25) with fallback method        
         audio = bottom_video.audio
-        audio_mod = volumex(audio, 0.20)
+        audio_mod = volumex(audio, 0.25)
         bottom_video = bottom_video.with_audio(audio_mod)
         
         # Calculate middle section of bottom video
@@ -83,13 +83,13 @@ def create_video(input_video_path, output_video_path, transcript, snippet, face_
         text_clip = mp.TextClip(
             text=lines[i]["line"], 
             font="Arial.ttf", 
-            font_size=18, 
+            font_size=24, 
             stroke_color="white", 
             color="black", 
             stroke_width=1
         )
         text_clip = text_clip.with_duration(clip_end_time - clip_start_time)
-        text_clip = text_clip.with_position(('center', 'bottom-center'), relative=True)
+        text_clip = text_clip.with_position(('center', 'bottom'), relative=True)
         
         video_clip = mp.CompositeVideoClip([video_clip, text_clip])
         video_clips.append(video_clip)
