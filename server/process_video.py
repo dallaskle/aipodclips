@@ -7,6 +7,7 @@ from create_video import create_video
 from snippets import generate_snippets
 import json
 from fireworks.client.audio import AudioInference
+import asyncio
 
 # Load environment variables
 load_dotenv()
@@ -33,22 +34,22 @@ def download(url, output_path):
         print(f"YouTube DL Error: {str(e)}")
         return {"message": f"Error downloading video: {str(e)}"}
 
-def transcribe(video_path):
+async def transcribe(video_path):
     client = AudioInference(
         model="whisper-v3-turbo",
         base_url="https://audio-turbo.us-virginia-1.direct.fireworks.ai",
     )
 
     print("transcribing audio")
-    result = client.transcribe(
+    result = await client.transcribe_async(
         audio=video_path,
         language="en",
         response_format="verbose_json",
         timestamp_granularities=["word"],
-    ).model_dump()
-    return result
+    )
+    return result.model_dump()
 
-def process_video_url(url, face_tracking=False, bottom_video_url=None):
+async def process_video_url(url, face_tracking=False, bottom_video_url=None):
     # Create output directory if it doesn't exist
     os.makedirs("video_inputs", exist_ok=True)
     os.makedirs("video_outputs", exist_ok=True)
@@ -63,7 +64,7 @@ def process_video_url(url, face_tracking=False, bottom_video_url=None):
     
     # Transcribe the video
     print("Transcribing video...")
-    transcript = transcribe(input_path)
+    transcript = await transcribe(input_path)
     
     # Generate snippets
     print("Generating snippets...")
@@ -105,6 +106,6 @@ if __name__ == "__main__":
     use_face_tracking = input("Use face tracking? (y/n): ").lower() == 'y'
     
     bottom_video_url = bottom_url if bottom_url.strip() else None
-    clips = process_video_url(url, face_tracking=use_face_tracking, bottom_video_url=bottom_video_url)
+    clips = asyncio.run(process_video_url(url, face_tracking=use_face_tracking, bottom_video_url=bottom_video_url))
     print("\nProcessing complete!")
     print("Output clips:", clips)
