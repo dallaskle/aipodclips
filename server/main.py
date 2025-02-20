@@ -13,7 +13,7 @@ from title import generate_title
 from query_refiner import refine_query
 from video_metadata import get_videos_metadata
 from research_to_shorts import extract_youtube_links, research_to_shorts
-
+from process_video import process_video_url
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
