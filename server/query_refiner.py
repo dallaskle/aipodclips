@@ -1,6 +1,8 @@
 from openai import AsyncOpenAI
 import os
 from dotenv import load_dotenv
+import json
+import re
 
 load_dotenv()
 
@@ -17,13 +19,26 @@ If it is specific enough, provide:
 2. A report prompt focused on finding relevant YouTube video links
 
 Respond in JSON format:
-{
+{{
     "is_specific": true/false,
     "clarifying_questions": [] if specific, else list of questions,
     "refined_query": null if not specific, else the refined query,
     "report_prompt": null if not specific, else the report prompt
-}
+}}
 """
+
+def _clean_json_string(text: str) -> str:
+    # Remove leading/trailing code fences
+    text = re.sub(r'^```(?:json)?\s*', '', text)
+    text = re.sub(r'\s*```$', '', text)
+    # Extract the JSON object
+    start = text.find('{')
+    end = text.rfind('}')
+    if start != -1 and end != -1:
+        text = text[start:end+1]
+    # Escape newline characters
+    text = re.sub(r'(?<!\\)\n', '\\n', text)
+    return text
 
 async def refine_query(user_input: str) -> dict:
     """
@@ -36,10 +51,18 @@ async def refine_query(user_input: str) -> dict:
                 {"role": "system", "content": "You are a helpful AI assistant specializing in content creation and research."},
                 {"role": "user", "content": REFINEMENT_PROMPT.format(user_input=user_input)}
             ],
-            response_format={ "type": "json" }
+            response_format={ "type": "json_object" }
         )
         
-        return response.choices[0].message.content
+        text_output = response.choices[0].message.content
+        text_output = _clean_json_string(text_output)
+        
+        try:
+            parsed_object = json.loads(text_output)
+            return parsed_object
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Failed to parse model response as JSON: {e}\nResponse text: {text_output}")
+            
     except Exception as e:
         print(f"OpenAI Error: {str(e)}")
         raise 

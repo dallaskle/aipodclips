@@ -15,33 +15,21 @@ from research_to_shorts import extract_youtube_links, research_to_shorts
 
 app = Flask(__name__)
 
-# Configure CORS properly
-CORS(app, resources={
-    r"/*": {
-        "origins": ["http://localhost:3000"],
-        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"],
-        "supports_credentials": True
-    }
-})
-
-# Ensure CORS headers are added to all responses
-@app.after_request
-def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
-    response.headers.add('Access-Control-Allow-Credentials', 'true')
-    return response
+# Allow all origins
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 @app.route('/api/refine-query', methods=['POST', 'OPTIONS'])
 async def refine_query_endpoint():
     """
     Endpoint to refine user's query using OpenAI.
     """
-    # Handle preflight request
     if request.method == 'OPTIONS':
-        return jsonify({}), 200
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
         
     data = request.json
     user_input = data.get('query')
