@@ -1,184 +1,119 @@
-from flask import Flask, request, render_template, make_response
+from flask import Flask, request, render_template, make_response, jsonify, send_from_directory
 from flask_cors import CORS
-from firebase_admin import auth, credentials, firestore, initialize_app, storage
 import datetime
 import yt_dlp
 import tempfile
 import json
 import uuid
+import asyncio
 from create_video import create_video
 from snippets import generate_snippets
 from title import generate_title
-
-initialize_app(credentials.Certificate("firebase_private_key.json"))
+from query_refiner import refine_query
+from video_metadata import get_videos_metadata
+from research_to_shorts import extract_youtube_links, research_to_shorts
 
 app = Flask(__name__)
-CORS(app)
 
-@app.route('/')
-def index():
-    jwt = request.cookies.get('jwt')
-    user = auth.verify_session_cookie(jwt) if jwt else None
-    if user:
-        # user videos
-        db = firestore.client()
-        videos = db.collection('videos').where(filter=firestore.FieldFilter('uid', '==', user['uid'])).get()
-        videos = [video.to_dict() for video in videos]
-        return render_template('home.html', user=user, videos=videos)
-    else:
-        return render_template('index.html')
+# Configure CORS properly
+CORS(app, resources={
+    r"/*": {
+        "origins": ["http://localhost:3000"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True
+    }
+})
 
-@app.route('/signin')
-def signin():
-    return render_template('signin.html')
+# Ensure CORS headers are added to all responses
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
-@app.route('/signup')
-def signup():
-    return render_template('signup.html')
-
-@app.route('/video/<video_id>')
-def video(video_id):
-    db = firestore.client()
-    video = db.collection('videos').document(video_id).get().to_dict()
-    if not video:
-        return "Video not found", 404
-    video["video_url"] = storage.bucket("aipodclips-8369c.firebasestorage.app").blob(f"video_inputs/{video_id}").generate_signed_url(expiration=datetime.timedelta(minutes=15))
-    for clip in video.get("clips", []):
-        if "id" in clip:
-            clip["video_url"] = storage.bucket("aipodclips-8369c.firebasestorage.app").blob(f"video_outputs/{clip['id']}").generate_signed_url(expiration=datetime.timedelta(minutes=15))
-    return render_template('video.html', video=video)
-
-@app.route('/api', methods=['POST'])
-def api():
-    body = request.json
-    print(body)
-
-    if body["action"] == "hello":
-        return {"message": "Hello world!"}
-    elif body["action"] == "create":
-        return create(body)
-    elif body["action"] == "download":
-        return download(body)
-    elif body["action"] == "generate_snippets":
-        return generate_snippets(body)
-    elif body["action"] == "generate_title":
-        return generate_title(body)
-    elif body["action"] == "transcribe":
-        return transcribe(body)
-    else:
-        return {"message": "Unknown action!"}
-
-@app.post("/on_authenticated")
-def on_authenticated():
-    body = request.json
-    res = make_response()
-    try:
-        month = 1209600 # 2 weeks, maximum expiration allowed by the library
-        jwt = auth.create_session_cookie(body['idToken'], expires_in=month)
-        res.set_cookie(key="jwt", value=jwt, expires=month)
-        return {"jwt": jwt}
-    except Exception as e:
-        return "Unauthorized", 401
-
-def create(body):
-    video_id = body["video_id"]
-    snippet = body["snippet"]
-
-    with tempfile.TemporaryDirectory() as temp_dir:
-        bucket = storage.bucket("aipodclips-8369c.firebasestorage.app")
-        input_path = f"{temp_dir}/input_{video_id}"
-        output_path = f"{temp_dir}/output_{video_id}.mp4"
-
-        # Download video
-        blob = bucket.blob(f"video_inputs/{video_id}")
-        blob.download_to_filename(input_path)
-
-        # Download transcript
-        blob = bucket.blob(f"transcripts/{video_id}.json")
-        transcript_path = f"{temp_dir}/transcript_{video_id}.json"
-        transcript = blob.download_to_filename(transcript_path)
-        transcript = json.load(open(transcript_path))
-
-        # Create video
-        create_video(input_path, output_path, transcript, snippet)
-
-        # Upload video to firebase storage
-        clip_id = str(uuid.uuid4())
-        blob = bucket.blob(f"video_outputs/{clip_id}")
-        blob.upload_from_filename(output_path)
-
-        return {"clip_id": clip_id}
-
-def download(body):
-    url = body["url"]
-    video_id = body["video_id"]
-    
-    # Initialize Firebase Storage bucket
-    bucket = storage.bucket("aipodclips-8369c.firebasestorage.app")
-    
-    # Create a temporary directory to store the download
-    with tempfile.TemporaryDirectory() as temp_dir:
-        ydl_opts = {
-            'format': 'best',
-            'outtmpl': f'{temp_dir}/%(id)s.%(ext)s',
-            'nocheckcertificate': True,
-            'no_cache_dir': True,
-            'no_mtime': True,  # Prevents timestamp modification
-            'noprogress': True,  # Reduces output noise
-        }
+@app.route('/api/refine-query', methods=['POST', 'OPTIONS'])
+async def refine_query_endpoint():
+    """
+    Endpoint to refine user's query using OpenAI.
+    """
+    # Handle preflight request
+    if request.method == 'OPTIONS':
+        return jsonify({}), 200
         
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Download the video
-                print("downloading video")
-                info = ydl.extract_info(url, download=True)
-                video_title = info['title']
-                video_path = f"{temp_dir}/{info['id']}.{info['ext']}"
-                
-                print("uploading to firebase")
-                # Upload to Firebase Storage
-                blob = bucket.blob(f"video_inputs/{video_id}")
-                blob.upload_from_filename(video_path)
-                
-                return {
-                    "message": "Video downloaded successfully",
-                    "url": blob.public_url,
-                    "title": video_title,
-                }
-        except Exception as e:
-            print(f"YouTube DL Error: {str(e)}")
-            return {"message": f"Error downloading video: {str(e)}"}
-
-def transcribe(body):
-    video_id = body["video_id"]
-    bucket = storage.bucket("aipodclips-8369c.firebasestorage.app")
-
-    # Get video
-    blob = bucket.blob(f"video_inputs/{video_id}")
-    signed_url = blob.generate_signed_url(expiration=datetime.timedelta(minutes=15))
-
-    # Generate transcript
-    transcript = fireworks_transcribe(signed_url)
+    data = request.json
+    user_input = data.get('query')
     
-    # Upload transcript
-    blob = bucket.blob(f"transcripts/{video_id}.json")
-    blob.upload_from_string(json.dumps(transcript))
+    if not user_input:
+        return jsonify({'error': 'No query provided'}), 400
+    
+    try:
+        refinement_result = await refine_query(user_input)
+        return jsonify(refinement_result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    return transcript
+@app.route('/api/start-research', methods=['POST'])
+async def start_research():
+    """
+    Endpoint to start the deep research process.
+    """
+    data = request.json
+    query = data.get('query')
+    prompt = data.get('prompt')
+    
+    if not query or not prompt:
+        return jsonify({'error': 'Query and prompt are required'}), 400
+    
+    try:
+        # Run research and extract links
+        report = await research_to_shorts(query, prompt, face_tracking=False)
+        videos = extract_youtube_links(report)
+        
+        # Get metadata for videos
+        metadata = get_videos_metadata([v['url'] for v in videos])
+        
+        return jsonify({
+            'videos': metadata
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-def fireworks_transcribe(url):
-    from fireworks.client.audio import AudioInference
+@app.route('/api/process-videos', methods=['POST'])
+async def process_videos():
+    """
+    Endpoint to process selected videos into shorts.
+    """
+    data = request.json
+    videos = data.get('videos', [])
+    face_tracking = data.get('face_tracking', False)
+    
+    if not videos:
+        return jsonify({'error': 'No videos provided'}), 400
+    
+    try:
+        all_clips = []
+        for video in videos:
+            clips = await process_video_url(video['url'], face_tracking=face_tracking)
+            all_clips.extend(clips)
+        
+        return jsonify({
+            'clips': all_clips
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
-    client = AudioInference(
-        model="whisper-v3-turbo",
-        base_url="https://audio-turbo.us-virginia-1.direct.fireworks.ai",
-    )
+@app.route('/download/<path:filename>')
+def download_file(filename):
+    """
+    Endpoint to download processed video clips.
+    """
+    try:
+        return send_from_directory('video_outputs', filename, as_attachment=True)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 404
 
-    print("transcribing audio")
-    result = client.transcribe(
-        audio=url,
-        language="en",
-        response_format="verbose_json",
-        timestamp_granularities=["word"],
-    ).model_dump()
-    return result
+if __name__ == '__main__':
+    app.run(debug=True, port=8000)
