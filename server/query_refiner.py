@@ -35,15 +35,22 @@ User Request: {user_input}
 
 First, provide a refined version of the query that better expresses the user's intent.
 Then, analyze if this refined query is specific enough to search for relevant YouTube videos.
-If not specific enough, provide clarifying questions.
-If specific enough, provide a report prompt focused on finding relevant YouTube video links.
+
+Even if the query is specific enough, always provide 2-3 clarifying questions that could make the search even more focused.
+If the query is not specific enough, provide questions that are necessary to proceed.
+
+If the query is specific enough, also provide a report prompt focused on finding relevant YouTube video links.
 
 Respond in JSON format:
 {{
     "is_specific": true/false,
-    "clarifying_questions": [] if specific, else list of questions,
+    "clarifying_questions": [
+        "list of 2-3 questions that could make the search even more specific",
+        "if not specific enough, questions that are necessary to proceed"
+    ],
     "refined_query": "the refined query (always provided)",
-    "report_prompt": null if not specific, else the report prompt
+    "report_prompt": null if not specific, else the report prompt,
+    "can_be_more_specific": true if the query could be even more specific, false if it's already highly specific
 }}
 """
 
@@ -83,20 +90,32 @@ async def refine_query(user_input: str) -> dict:
             original_query = input_data.get('original_query', '')
             clarifications = input_data.get('clarifications', [])
             
-            # Format the input for GPT with clarifications if present
-            if clarifications:
-                formatted_input = f"""Original Query: {original_query}
+            # Validate clarifications structure
+            if clarifications and isinstance(clarifications, list):
+                # Ensure each clarification has required fields
+                valid_clarifications = []
+                for c in clarifications:
+                    if isinstance(c, dict) and 'question' in c and 'answer' in c:
+                        valid_clarifications.append(c)
+                    else:
+                        logger.warning(f"Skipping invalid clarification: {c}")
+                
+                if valid_clarifications:
+                    formatted_input = f"""Original Query: {original_query}
 
 Clarifications:
-{chr(10).join(f'Q: {c["question"]}\nA: {c["answer"]}' for c in clarifications)}"""
-                logger.info("Processing query with clarifications:")
-                logger.info(f"Original query: {original_query}")
-                logger.info("Clarifications:")
-                for c in clarifications:
-                    logger.info(f"- Q: {c['question']}")
-                    logger.info(f"  A: {c['answer']}")
+{chr(10).join(f'Q: {c["question"]}\nA: {c["answer"]}' for c in valid_clarifications)}"""
+                    logger.info("Processing query with clarifications:")
+                    logger.info(f"Original query: {original_query}")
+                    logger.info("Clarifications:")
+                    for c in valid_clarifications:
+                        logger.info(f"- Q: {c['question']}")
+                        logger.info(f"  A: {c['answer']}")
+                else:
+                    formatted_input = original_query
+                    logger.info(f"Processing original query: {formatted_input}")
             else:
-                formatted_input = user_input
+                formatted_input = original_query or user_input
                 logger.info(f"Processing simple query: {formatted_input}")
         except json.JSONDecodeError:
             # If not JSON, treat as simple query
