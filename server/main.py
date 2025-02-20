@@ -46,7 +46,7 @@ async def refine_query_endpoint():
 @app.route('/api/start-research', methods=['POST'])
 async def start_research():
     """
-    Endpoint to start the deep research process.
+    Endpoint to start the deep research process and return video metadata.
     """
     data = request.json
     query = data.get('query')
@@ -75,16 +75,18 @@ async def process_videos():
     Endpoint to process selected videos into shorts.
     """
     data = request.json
-    videos = data.get('videos', [])
+    query = data.get('query')
+    prompt = data.get('prompt')
+    selected_videos = data.get('selected_videos', [])
     face_tracking = data.get('face_tracking', False)
     
-    if not videos:
+    if not selected_videos:
         return jsonify({'error': 'No videos provided'}), 400
     
     try:
         all_clips = []
-        for video in videos:
-            clips = await process_video_url(video['url'], face_tracking=face_tracking)
+        for video_url in selected_videos:
+            clips = await process_video_url(video_url, face_tracking=face_tracking)
             all_clips.extend(clips)
         
         return jsonify({

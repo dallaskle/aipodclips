@@ -37,68 +37,33 @@ def extract_youtube_links(markdown_content: str) -> List[Dict[str, str]]:
     
     return videos
 
-async def research_to_shorts(query: str, prompt: str, face_tracking: bool = False) -> List[str]:
+async def research_to_shorts(query: str, prompt: str, face_tracking: bool = False) -> str:
     """
-    Main function to run research and process videos.
-    Returns a list of output clip paths.
+    Function to run research and return the research report.
+    Returns the research report text.
     """
     # Run the deep research
     print("\n1. Running deep research...")
     report = await run_research(query, prompt)
     
-    # Extract YouTube links
-    print("\n2. Extracting YouTube links from research...")
-    videos = extract_youtube_links(report)
-    
-    if not videos:
-        print("No YouTube links found in the research output!")
-        return []
-    
-    # Display found videos
-    print("\nFound the following YouTube videos:")
-    for i, video in enumerate(videos):
-        print(f"\n{i+1}. {video['url']}")
-        print(f"   Context: {video['context']}")
-    
-    # Get user selection
-    print("\nEnter the numbers of the videos you want to process (comma-separated)")
-    print("Example: 1,3,4 or press Enter to process all")
-    selection = input("> ").strip()
-    
-    # Process selection
-    if selection:
-        selected_indices = [int(i.strip()) - 1 for i in selection.split(",")]
-        selected_videos = [videos[i] for i in selected_indices if 0 <= i < len(videos)]
-    else:
-        selected_videos = videos
-    
-    # Process each selected video
-    output_clips = []
-    for video in selected_videos:
-        print(f"\nProcessing video: {video['url']}")
-        try:
-            clips = await process_video_url(video['url'], face_tracking=face_tracking)
-            output_clips.extend(clips)
-        except Exception as e:
-            print(f"Error processing video {video['url']}: {str(e)}")
-    
-    return output_clips
+    return report
 
 if __name__ == "__main__":
     print("Welcome to Research to Shorts!")
-    print("This tool will run deep research and create short clips from relevant YouTube videos.\n")
+    print("This tool will run deep research and extract YouTube links.\n")
     
     # Get user inputs
     query = input("Enter your research query: ")
     prompt = input("Enter your report prompt: ")
-    face_tracking = input("Use face tracking? (y/n): ").lower() == 'y'
     
-    # Run the main process
-    clips = asyncio.run(research_to_shorts(query, prompt, face_tracking))
+    # Run the research process
+    report = asyncio.run(research_to_shorts(query, prompt))
     
-    # Display results
-    if clips:
-        print("\nProcessing complete!")
-        print("Output clips:", clips)
+    # Extract and display links
+    videos = extract_youtube_links(report)
+    if videos:
+        print("\nFound YouTube links:")
+        for video in videos:
+            print(f"- {video['url']}")
     else:
-        print("\nNo clips were generated.") 
+        print("\nNo YouTube links found in the research.") 
