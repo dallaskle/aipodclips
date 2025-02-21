@@ -129,7 +129,9 @@ def download_file(filename):
     """
     try:
         logger.info(f"Processing download request for: {filename}")
-        return send_from_directory('video_outputs', filename, as_attachment=True)
+        # Remove video_outputs/ prefix if it exists
+        clean_filename = filename.replace('video_outputs/', '')
+        return send_from_directory('video_outputs', clean_filename, as_attachment=True)
     except Exception as e:
         logger.error(f"Error in download endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 404
