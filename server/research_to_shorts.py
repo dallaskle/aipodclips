@@ -52,9 +52,11 @@ if __name__ == "__main__":
     print("Welcome to Research to Shorts!")
     print("This tool will run deep research and extract YouTube links.\n")
     
-    # Get user inputs
+    # Get user input
     query = input("Enter your research query: ")
-    prompt = input("Enter your report prompt: ")
+    
+    # Hardcoded prompt focused on YouTube links
+    prompt = "Please provide relevant YouTube video links. Please provide links to videos that are related to the query."
     
     # Run the research process
     report = asyncio.run(research_to_shorts(query, prompt))

@@ -7,6 +7,7 @@ import json
 import uuid
 import asyncio
 import logging
+import os
 from create_video import create_video
 from snippets import generate_snippets
 from title import generate_title
@@ -122,16 +123,64 @@ async def process_videos():
         logger.error(f"Error in process-videos endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
+def cleanup_video_files(video_id: str):
+    """
+    Clean up video files associated with a video ID.
+    """
+    try:
+        # Clean up input video if it exists
+        input_path = f"video_inputs/{video_id}"
+        if os.path.exists(input_path):
+            os.remove(input_path)
+            logger.info(f"Cleaned up input video: {input_path}")
+        
+        # Clean up bottom video if it exists
+        bottom_video_path = f"video_inputs/bottom_{video_id}"
+        if os.path.exists(bottom_video_path):
+            os.remove(bottom_video_path)
+            logger.info(f"Cleaned up bottom video: {bottom_video_path}")
+            
+    except Exception as e:
+        logger.error(f"Error cleaning up video files: {str(e)}")
+
 @app.route('/download/<path:filename>')
 def download_file(filename):
     """
-    Endpoint to download processed video clips.
+    Endpoint to download processed video clips and clean up after download.
     """
     try:
         logger.info(f"Processing download request for: {filename}")
         # Remove video_outputs/ prefix if it exists
         clean_filename = filename.replace('video_outputs/', '')
-        return send_from_directory('video_outputs', clean_filename, as_attachment=True)
+        file_path = os.path.join('video_outputs', clean_filename)
+        
+        if not os.path.exists(file_path):
+            logger.warning(f"File not found: {file_path}")
+            return jsonify({'error': 'File not found'}), 404
+        
+        # Send the file
+        response = send_from_directory('video_outputs', clean_filename, as_attachment=True)
+        
+        # Extract video ID from filename (assuming format: clip_<uuid>_<index>.mp4)
+        parts = clean_filename.split('_')
+        if len(parts) >= 2:
+            video_id = parts[1]  # This should be the UUID part
+            
+            # Schedule cleanup after response is sent
+            @response.call_on_close
+            def cleanup():
+                try:
+                    # Remove the output clip
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                        logger.info(f"Cleaned up output clip: {file_path}")
+                    
+                    # Clean up associated input files
+                    cleanup_video_files(video_id)
+                except Exception as e:
+                    logger.error(f"Error in cleanup: {str(e)}")
+        
+        return response
     except Exception as e:
         logger.error(f"Error in download endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 404
