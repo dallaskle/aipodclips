@@ -44,7 +44,7 @@ async def research_to_shorts(query: str, prompt: str, face_tracking: bool = Fals
     """
     # Run the deep research
     print("\n1. Running deep research...")
-    report = await run_research(query, prompt)
+    report = await run_research(query + prompt, prompt)
     
     return report
 
