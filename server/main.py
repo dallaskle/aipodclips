@@ -27,12 +27,20 @@ app = Flask(__name__)
 
 # Configure CORS with credentials support
 CORS(app, 
-     resources={r"/api/*": {
-         "origins": ["http://localhost:3000"],
-         "supports_credentials": True,
-         "allow_headers": ["Content-Type", "Authorization"],
-         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
-     }})
+     resources={
+         r"/api/*": {
+             "origins": ["http://localhost:3000"],
+             "supports_credentials": True,
+             "allow_headers": ["Content-Type", "Authorization"],
+             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+         },
+         r"/download/*": {
+             "origins": ["http://localhost:3000"],
+             "supports_credentials": True,
+             "allow_headers": ["Content-Type", "Authorization"],
+             "methods": ["GET", "OPTIONS"]
+         }
+     })
 
 @app.route('/api/refine-query', methods=['POST', 'OPTIONS'])
 async def refine_query_endpoint():
@@ -157,11 +165,19 @@ def cleanup_video_files(video_id: str):
     except Exception as e:
         logger.error(f"Error cleaning up video files: {str(e)}")
 
-@app.route('/download/<path:filename>')
+@app.route('/download/<path:filename>', methods=['GET', 'OPTIONS'])
 def download_file(filename):
     """
     Endpoint to download processed video clips and clean up after download.
     """
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+
     try:
         logger.info(f"Processing download request for: {filename}")
         # Remove video_outputs/ prefix if it exists
@@ -174,6 +190,10 @@ def download_file(filename):
         
         # Send the file
         response = send_from_directory('video_outputs', clean_filename, as_attachment=True)
+        
+        # Add CORS headers to the response
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
         
         # Extract video ID from filename (assuming format: clip_<uuid>_<index>.mp4)
         parts = clean_filename.split('_')
