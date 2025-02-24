@@ -8,8 +8,7 @@ pydub==0.25.0
 yt-dlp==2025.1.26
 nltk==3.9.1
 python-dotenv
-gunicorn[gevent]==21.2.0
-gevent==24.2.1
+gunicorn==21.2.0
 
 # Deep Research dependencies
 aiohappyeyeballs==2.4.6
