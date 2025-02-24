@@ -8,6 +8,7 @@ import uuid
 import asyncio
 import logging
 import os
+from dotenv import load_dotenv
 from create_video import create_video
 from snippets import generate_snippets
 from title import generate_title
@@ -15,6 +16,11 @@ from query_refiner import refine_query
 from video_metadata import get_videos_metadata
 from research_to_shorts import extract_youtube_links, research_to_shorts
 from process_video import process_video_url
+
+# Load environment variables
+load_dotenv()
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -29,13 +35,13 @@ app = Flask(__name__)
 CORS(app, 
      resources={
          r"/api/*": {
-             "origins": ["http://localhost:3000"],
+             "origins": [FRONTEND_URL],
              "supports_credentials": True,
              "allow_headers": ["Content-Type", "Authorization"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
          },
          r"/download/*": {
-             "origins": ["http://localhost:3000"],
+             "origins": [FRONTEND_URL],
              "supports_credentials": True,
              "allow_headers": ["Content-Type", "Authorization"],
              "methods": ["GET", "OPTIONS"]
@@ -49,7 +55,7 @@ async def refine_query_endpoint():
     """
     if request.method == 'OPTIONS':
         response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -78,7 +84,7 @@ async def start_research():
     """
     if request.method == 'OPTIONS':
         response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -172,7 +178,7 @@ def download_file(filename):
     """
     if request.method == 'OPTIONS':
         response = make_response()
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
         response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
         response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
         response.headers.add('Access-Control-Allow-Credentials', 'true')
@@ -192,7 +198,7 @@ def download_file(filename):
         response = send_from_directory('video_outputs', clean_filename, as_attachment=True)
         
         # Add CORS headers to the response
-        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Origin', FRONTEND_URL)
         response.headers.add('Access-Control-Allow-Credentials', 'true')
         
         # Extract video ID from filename (assuming format: clip_<uuid>_<index>.mp4)
