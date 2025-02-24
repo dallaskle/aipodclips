@@ -20,13 +20,6 @@ from process_video import process_video_url
 # Load environment variables
 load_dotenv()
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
-ALLOWED_ORIGINS = [
-    'http://localhost:3000',
-    'https://localhost:3000',
-    'https://aipodclips.com',
-    'https://www.aipodclips.com',
-    'https://aipodclips-web.onrender.com'
-]
 
 # Configure logging
 logging.basicConfig(
@@ -42,13 +35,13 @@ app = Flask(__name__)
 CORS(app, 
      resources={
          r"/api/*": {
-             "origins": ALLOWED_ORIGINS,
+             "origins": [FRONTEND_URL],
              "supports_credentials": True,
              "allow_headers": ["Content-Type", "Authorization"],
              "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
          },
          r"/download/*": {
-             "origins": ALLOWED_ORIGINS,
+             "origins": [FRONTEND_URL],
              "supports_credentials": True,
              "allow_headers": ["Content-Type", "Authorization"],
              "methods": ["GET", "OPTIONS"]
