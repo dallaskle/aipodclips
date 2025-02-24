@@ -101,10 +101,11 @@ async def refine_query(user_input: str) -> dict:
                         logger.warning(f"Skipping invalid clarification: {c}")
                 
                 if valid_clarifications:
+                    clarifications_text = '\n'.join(f'Q: {c["question"]}\nA: {c["answer"]}' for c in valid_clarifications)
                     formatted_input = f"""Original Query: {original_query}
 
 Clarifications:
-{chr(10).join(f'Q: {c["question"]}\nA: {c["answer"]}' for c in valid_clarifications)}"""
+{clarifications_text}"""
                     logger.info("Processing query with clarifications:")
                     logger.info(f"Original query: {original_query}")
                     logger.info("Clarifications:")
