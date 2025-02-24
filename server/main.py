@@ -25,8 +25,14 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Allow all origins
-CORS(app, resources={r"/*": {"origins": "*"}})
+# Configure CORS with credentials support
+CORS(app, 
+     resources={r"/api/*": {
+         "origins": ["http://localhost:3000"],
+         "supports_credentials": True,
+         "allow_headers": ["Content-Type", "Authorization"],
+         "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+     }})
 
 @app.route('/api/refine-query', methods=['POST', 'OPTIONS'])
 async def refine_query_endpoint():
@@ -57,11 +63,19 @@ async def refine_query_endpoint():
         logger.error(f"Error in refine-query endpoint: {str(e)}", exc_info=True)
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/start-research', methods=['POST'])
+@app.route('/api/start-research', methods=['POST', 'OPTIONS'])
 async def start_research():
     """
     Endpoint to start the deep research process and return video metadata.
     """
+    if request.method == 'OPTIONS':
+        response = make_response()
+        response.headers.add('Access-Control-Allow-Origin', 'http://localhost:3000')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,PUT,POST,DELETE,OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     data = request.json
     query = data.get('query')
     prompt = data.get('prompt')
